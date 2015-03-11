@@ -138,6 +138,11 @@ ggplot(plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/10000, color=r, gro
   facet_grid(event ~ AgeGroup, scales = "free_y") + geom_line() + scale_y_continuous(name="10k cases") +
   scale_color_continuous(low="blue", high="red", name=expression(R[0])) + xlab("Vaccination Rate in 5-18 year olds")
 
+## or
+
+ggplot(plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/10000, fill=AgeGroup, group=r) + 
+  facet_grid(event ~ r, scales = "free_y") + geom_bar(stat="identity") + ylab("10k cases") + xlab("Vaccination Rate in 5-18 year olds")
+
 # OTC total
 cases.dt[,otc_cases_t := otc_cases + otc_cases_hr]
 
