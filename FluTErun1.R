@@ -30,414 +30,159 @@ setwd(cf)
 # dzweyker <- read.csv("data/Cost Effect/dzparamweycker.csv")
 # dzweyker.dt <- data.table(dzweyker) 
 
+require(data.table)
 
 # Reading in raw data 
 
 #2013 population data 
-agegroup <-read.csv("data/Cost Effect/Agegroupop.csv",
-                    stringsAsFactors = FALSE)
-#FluTE Run 2.27.15
-run <- read.csv("data/Cost Effect/runs.csv")#, stringsAsFactors = FALSE)
-#run$r <- factor(run$r) #makes something into a factor 
-#subset(run, scenario =="base" & r == 1.2) # this is to call it 
-# subset give part of data frame (run) that matches criteria (e.g., scenario = base AND r = 1.2)
-
-### Carl's example of a for loop 
-#for (scen in levels(run$scenario)) for (r0 in levels(run$r))
-#{
-#  target <- subset(run, scenario == scen & r == r0)
-#}
-
-######### Carl's example of using a data table 
-#require(data.table); require(reshape2)
-
-#run.dt <- data.table(run)
-#analysis.dt <- run.dt[r != 1.2, list(mean.a0 = mean(attack0), mean.a1 = mean(attack1)), by=c("scenario","r")]
-# within the [ a,b ], a is what you are filtering; b is what you are listing 
-
-#############################################################################
-#############################################################################
-##### Another way (Carl's quicker Way - probably best way )
-# Essentially you are melting the data table and subsetting the from long to wide 
-#call in packages
-require(data.table); require(reshape2) 
-
-# make it into a data table
-run.dt <- data.table(run) 
-
-# melt the data 
-run.melt <- melt(run.dt, variable.name="measure", id.vars=c("scenario","r"))
-measures.dt <- run.melt[,list(mean=mean(value), sd=sd(value)),by=c("scenario","r","measure")]
-write.csv (measures.dt, file= "measures.1.csv")
-
-## POPULATION VARIABLE 
-## this is to make another column of data. For this instance, using population 
-measures.dt$pop = 0
-measures.dt[measure == "attack0", pop:=20201362]
-measures.dt[measure == "attack1", pop:=58480960]
-measures.dt[measure == "attack2", pop:=47273082]
-measures.dt[measure == "attack3", pop:=142522150]
-measures.dt[measure == "attack4", pop:=40267984]
-
+agegroup <- data.table(read.csv("Agegroupop.csv"))
+setnames(agegroup, c("AgeGroup","Population"))
+levels(agegroup$AgeGroup) <- c("0-4","19-29","30-64","5-18","65+")
+agegroup$AgeGroup <- factor(agegroup$AgeGroup, levels=c("0-4","5-18","19-29","30-64","65+"))
+agegroup <- rbind(agegroup[,list(Population, risk=factor("high",levels=c("low","high"))), by=c("AgeGroup")],agegroup[,list(Population, risk=factor("low",levels=c("low","high"))), by=c("AgeGroup")])
 ## High Risk Popluation 
 #adding high risk 
-measures.dt$h_risk = 0
-measures.dt[measure == "attack0", h_risk:=.052]
-measures.dt[measure == "attack1", h_risk:=.106]
-measures.dt[measure == "attack2", h_risk:=.149]
-measures.dt[measure == "attack3", h_risk:=.330]
-measures.dt[measure == "attack4", h_risk:=.512]
+agegroup[risk == "high", population := c(.052, .106, .149, .330, .512)*Population ]
+agegroup[risk == "low", population := (1-c(.052, .106, .149, .330, .512))*Population ]
+setkey(agegroup, AgeGroup, risk)
 
-##groups them via Scenario 
-measures.dt$group = 0
-measures.dt[scenario == "hom0", group:= "1"]
-measures.dt[scenario == "hom1", group:= "1"]
-measures.dt[scenario == "hom2", group:= "1"]
-measures.dt[scenario == "hom3", group:= "1"]
-measures.dt[scenario == "hom4", group:= "1"]
-measures.dt[scenario == "hom5", group:= "1"]
-measures.dt[scenario == "hom6", group:= "1"]
-measures.dt[scenario == "hom7", group:= "1"]
-measures.dt[scenario == "hom8", group:= "1"]
-measures.dt[scenario == "hom9", group:= "1"]
-measures.dt[scenario == "hom10", group:= "1"]
-measures.dt[scenario == "hom11", group:= "1"]
-measures.dt[scenario == "base", group:= "0"]
-measures.dt[scenario == "het0", group:= "2"]
-measures.dt[scenario == "het1", group:= "2"]
-measures.dt[scenario == "het2", group:= "2"]
-measures.dt[scenario == "het3", group:= "2"]
-measures.dt[scenario == "het4", group:= "2"]
-measures.dt[scenario == "het5", group:= "2"]
-measures.dt[scenario == "het6", group:= "2"]
-measures.dt[scenario == "het7", group:= "2"]
-measures.dt[scenario == "het8", group:= "2"]
-measures.dt[scenario == "het9", group:= "2"]
-measures.dt[scenario == "het10", group:= "2"]
-measures.dt[scenario == "het11", group:= "2"]
+#FluTE Run 2.27.15
+run <- data.table(read.csv("runs.csv"))
+run$r <- factor(run$r)
 
-as.factor(measures.dt$group)
+require(reshape2)
 
-#Vax %
-##groups them via Scenario- Making scenario into a factor 
-measures.dt$vax = 0
-measures.dt[scenario == "hom0", vax:= "0"]
-measures.dt[scenario == "hom1", vax:= "1"]
-measures.dt[scenario == "hom2", vax:= "2"]
-measures.dt[scenario == "hom3", vax:= "3"]
-measures.dt[scenario == "hom4", vax:= "4"]
-measures.dt[scenario == "hom5", vax:= "5"]
-measures.dt[scenario == "hom6", vax:= "6"]
-measures.dt[scenario == "hom7", vax:= "7"]
-measures.dt[scenario == "hom8", vax:= "8"]
-measures.dt[scenario == "hom9", vax:= "9"]
-measures.dt[scenario == "hom10",vax:= "10"]
-measures.dt[scenario == "hom11",vax:= "11"]
-measures.dt[scenario == "base", vax:= "999"]
-measures.dt[scenario == "het0", vax:= "0"]
-measures.dt[scenario == "het1", vax:= "1"]
-measures.dt[scenario == "het2", vax:= "2"]
-measures.dt[scenario == "het3", vax:= "3"]
-measures.dt[scenario == "het4", vax:= "4"]
-measures.dt[scenario == "het5", vax:= "5"]
-measures.dt[scenario == "het6", vax:= "6"]
-measures.dt[scenario == "het7", vax:= "7"]
-measures.dt[scenario == "het8", vax:= "8"]
-measures.dt[scenario == "het9", vax:= "9"]
-measures.dt[scenario == "het10", vax:= "10"]
-measures.dt[scenario == "het11", vax:= "11"]
+# melt the data 
+run.melt <- melt(run, variable.name="AgeGroup", value.name="AttackRate", id.vars=c("scenario","r"))
+## might want to realign levels for certainty in this next step, but in this case we know they are attack0, attack1, etc
+levels(run.melt$AgeGroup) <- levels(agegroup$AgeGroup)
+setkey(run.melt, scenario, r, AgeGroup)
+
+measures.dt <- run.melt[,list(AveAttackRate=mean(AttackRate), SDAttackRate=sd(AttackRate)), by=c("scenario","r","AgeGroup")]
+
+#split scenario into scenario (base, hom, het) and vax program (1-11, "" for base)
+measures.dt[, vax := sub("(hom|het|base)","",as.character(scenario))]
+measures.dt[, scenario := factor(sub("\\d+","", as.character(scenario)))]
+setkey(measures.dt, scenario, r, vax, AgeGroup)
+
+write.csv (measures.dt, file= "measures.1.csv")
 
 #made into an orrdered factor 
-as.ordered(measures.dt$vax) 
+#as.ordered(measures.dt$vax) 
 
-as.ordered(measures.dt$r)
+#as.ordered(measures.dt$r)
 
 #measures.dt1 <- measures.dt[, sum(mean*pop), by=c("scenario","r")] #carls orginal code. But I need also by measure (which is age group also)
 #measures.dt$SD <- measures.dt [,(sd*pop)] *Ignore for now 
-measures.dttest <- measures.dt[, sum(mean*pop), by=c("scenario","r","measure", "group", "h_risk", "vax")]
-
-## calculating high risk 
-measures.dttest$hrisk <- measures.dttest[, (V1*h_risk)]
-
-## calculating low risk 
-measures.dttest$lrisk <- measures.dttest[, (V1*(1-h_risk))]
-
+measures.dttest <- merge(agegroup, measures.dt, by="AgeGroup", allow.cartesian = T) #agegroup[measures.dt, list(pop = AveAttackRate*population), by=c("scenario", "vax", "r", "risk")]
+measures.dttest[, pop := population*AveAttackRate]
+measures.dttest$Population <- NULL
+measures.dttest$population <- NULL
 # making similiar data set and subsetting 
 play.dt <- measures.dttest 
 
+## to decruft CT code:
+## play.dt\[\s*measure\s*==\s*"attack[0-5]"\s*,\s*(\w+)\s*:=\s*([\.\d]+)\] replace w/ $2
+## play.dt\$(\w+)\s*=\s*0 replace w/ play.dt[,$1 :=c() ]
+
+## CABP ASIDE: WHERE DO THESE #s COME FROM?
 
 ##### PARAMETERS COST of one of the following: 
 
 #OTC (all same price ) 
-play.dt$otc = 4.58
-play.dt$otc_SD = 3.05
-                     
-
+agegroup$otc = 4.58
+agegroup$otc_SD = 3.05
 #oupt low risk 
-play.dt$oupt= 0
-play.dt[measure == "attack0" , oupt:=255]
-play.dt[measure == "attack1" , oupt:=145]
-play.dt[measure == "attack2" , oupt:=191]
-play.dt[measure == "attack3" , oupt:=229]
-play.dt[measure == "attack4" , oupt:=369]  
+agegroup[risk == "low", oupt := c(255, 145, 191, 229, 369) ]
+agegroup[risk == "low", oupt_SD := c(468, 393, 688, 1167, 2353) ]
+agegroup[risk == "high", oupt := c(875, 989, 1105, 1117, 725) ]
+agegroup[risk == "high", oupt_SD := c(1929, 2274, 2617, 1992, 1724) ]
+agegroup[risk == "low", hosp :=c(16580, 22880, 28972, 33989, 17450) ]
+agegroup[risk == "low", hosp_SD :=c(55148, 34867, 68022, 145878, 35235) ]
+agegroup[risk == "high", hosp :=c(124344, 312736, 72723, 62951, 25525) ]
+agegroup[risk == "high", hosp_SD :=c(188393, 76794, 130512, 113984, 48903) ]
+agegroup[risk == "low", death :=c(43916, 43916, 116328, 180695, 63924) ]
+agegroup[risk == "low", death_SD :=c(37241, 37241, 139671, 508796, 147005) ]
+agegroup[risk == "high", death :=c(408333, 408333, 115648, 181102, 50305) ]
+agegroup[risk == "high", death_SD :=c(336978, 336978, 99460, 527225, 94335) ]
 
-#oupt low risk SD
-play.dt$oupt_SE= 0
-play.dt[measure == "attack0" , oupt_SE:=468]
-play.dt[measure == "attack1" , oupt_SE:=393]
-play.dt[measure == "attack2" , oupt_SE:=688]
-play.dt[measure == "attack3" , oupt_SE:=1167]
-play.dt[measure == "attack4" , oupt_SE:=2353] 
-
-#oupt high risk 
-play.dt$oupt_hr= 0
-play.dt[measure == "attack0" , oupt_hr:=875]
-play.dt[measure == "attack1" , oupt_hr:=989]
-play.dt[measure == "attack2" , oupt_hr:=1105]
-play.dt[measure == "attack3" , oupt_hr:=1117]
-play.dt[measure == "attack4" , oupt_hr:=725]  
-
-#oupt high risk SE
-play.dt$oupt_hr_SE= 0
-play.dt[measure == "attack0" , oupt_hr_SE:=1929]
-play.dt[measure == "attack1" , oupt_hr_SE:=2274]
-play.dt[measure == "attack2" , oupt_hr_SE:=2617]
-play.dt[measure == "attack3" , oupt_hr_SE:=1992]
-play.dt[measure == "attack4" , oupt_hr_SE:=1724] 
-
-#hosp low risk
-play.dt$hosp= 0
-play.dt[measure == "attack0" , hosp:=16580]
-play.dt[measure == "attack1" , hosp:=22880]
-play.dt[measure == "attack2" , hosp:=28972]
-play.dt[measure == "attack3" , hosp:=33989]
-play.dt[measure == "attack4" , hosp:=17450]  
-
-#hosp low risk
-play.dt$hosp_SE= 0
-play.dt[measure == "attack0" , hosp_SE:=55148]
-play.dt[measure == "attack1" , hosp_SE:=34867]
-play.dt[measure == "attack2" , hosp_SE:=68022]
-play.dt[measure == "attack3" , hosp_SE:=145878]
-play.dt[measure == "attack4" , hosp_SE:=35235] 
-
-#hosp high risk
-play.dt$hosp_hr = 0
-play.dt[measure == "attack0" , hosp_hr:=124344]
-play.dt[measure == "attack1" , hosp_hr:=312736]
-play.dt[measure == "attack2" , hosp_hr:=72723]
-play.dt[measure == "attack3" , hosp_hr:=62951]
-play.dt[measure == "attack4" , hosp_hr:=25525]  
-
-#hosp high risk
-play.dt$hosp_hr_SE = 0
-play.dt[measure == "attack0" , hosp_hr_SE:=188393]
-play.dt[measure == "attack1" , hosp_hr_SE:=76794]
-play.dt[measure == "attack2" , hosp_hr_SE:=130512]
-play.dt[measure == "attack3" , hosp_hr_SE:=113984]
-play.dt[measure == "attack4" , hosp_hr_SE:=48903]
-
-#death low risk
-play.dt$death= 0
-play.dt[measure == "attack0" , death:=43916]
-play.dt[measure == "attack1" , death:=43916]
-play.dt[measure == "attack2" , death:=116328]
-play.dt[measure == "attack3" , death:=180695]
-play.dt[measure == "attack4" , death:=63924]  
-
-#death low risk
-play.dt$death_SE= 0
-play.dt[measure == "attack0" , death_SE:=37241]
-play.dt[measure == "attack1" , death_SE:=37241]
-play.dt[measure == "attack2" , death_SE:=139671]
-play.dt[measure == "attack3" , death_SE:=508796]
-play.dt[measure == "attack4" , death_SE:=147005]  
-
-#death high risk 
-play.dt$death_hr= 0
-play.dt[measure == "attack0" , death_hr:= 408333]
-play.dt[measure == "attack1" , death_hr:= 408333]
-play.dt[measure == "attack2" , death_hr:= 115648]
-play.dt[measure == "attack3" , death_hr:= 181102]
-play.dt[measure == "attack4" , death_hr:= 50305]  
-
-#death high risk 
-play.dt$death_hr_SE = 0
-play.dt[measure == "attack0" , death_hr_SE :=336978]
-play.dt[measure == "attack1" , death_hr_SE :=336978]
-play.dt[measure == "attack2" , death_hr_SE :=99460]
-play.dt[measure == "attack3" , death_hr_SE :=527225]
-play.dt[measure == "attack4" , death_hr_SE :=94335]  
-
-
-
-### Calculations
-
-# play.dt$otc_hr_c <- play.dt$hrisk * (play.dt$otc)
-# play.dt$ill_hr_c <- play.dt$hriisk * (play.dt$ill)
-# play.dt$oupt_hr_c <- play.dt$hriisk * (play.dt$oupt)
-# play.dt$hosp_hr_c <- play.dt$hriisk * (play.dt$hosp)
-# play.dt$death_hr_c <- play.dt$hriisk * (play.dt$death)
-##############################################
-
-##### PARAMETERS of one of the following: 
-
-# OTC
-play.dt$otc_para = 0
-play.dt[measure == "attack0", otc_para:=.5309]
-play.dt[measure == "attack1", otc_para:=.6184]
-play.dt[measure == "attack2", otc_para:=.6827]
-play.dt[measure == "attack3", otc_para:=.6745]
-play.dt[measure == "attack4", otc_para:=.0209]                     
-
-# OTC
-play.dt$otc_para_hr = 0
-play.dt[measure == "attack0", otc_para_hr:=.0759]
-play.dt[measure == "attack1", otc_para_hr:=.3644]
-play.dt[measure == "attack2", otc_para_hr:=.3708]
-play.dt[measure == "attack3", otc_para_hr:=.3625]
-play.dt[measure == "attack4", otc_para_hr:=.0209] 
-
-# #ill****
-# play.dt$ill_para = 0
-# play.dt[measure == "attack0", ill_para:=254.49]
-# play.dt[measure == "attack1", ill_para:=144.77]
-# play.dt[measure == "attack2", ill_para:=190.49]
-# play.dt[measure == "attack3", ill_para:=228.58]
-# play.dt[measure == "attack4", ill_para:=368.78]  
-
-#oupt
-play.dt$oupt_para = 0
-play.dt[measure == "attack0", oupt_para:=.455]
-play.dt[measure == "attack1", oupt_para:=.318]
-play.dt[measure == "attack2", oupt_para:=.313]
-play.dt[measure == "attack3", oupt_para:=.313]
-play.dt[measure == "attack4", oupt_para:=.620]  
-
-#oupt
-play.dt$oupt_para_hr= 0
-play.dt[measure == "attack0", oupt_para_hr:=.910]
-play.dt[measure == "attack1", oupt_para_hr:=.635]
-play.dt[measure == "attack2", oupt_para_hr:=.625]
-play.dt[measure == "attack3", oupt_para_hr:=.625]
-play.dt[measure == "attack4", oupt_para_hr:=.820]  
-
-
-#hosp
-play.dt$hosp_para = 0
-play.dt[measure == "attack0", hosp_para:=.0141]
-play.dt[measure == "attack1", hosp_para:=.0006]
-play.dt[measure == "attack2", hosp_para:=.0042]
-play.dt[measure == "attack3", hosp_para:=.0193]
-play.dt[measure == "attack4", hosp_para:=.0421]  
-
-#hosp
-play.dt$hosp_para_hr = 0
-play.dt[measure == "attack0", hosp_para_hr:=.0141]
-play.dt[measure == "attack1", hosp_para_hr:=.0006]
-play.dt[measure == "attack2", hosp_para_hr:=.0042]
-play.dt[measure == "attack3", hosp_para_hr:=.0193]
-play.dt[measure == "attack4", hosp_para_hr:=.0421]  
-
-#death_para
-play.dt$death_para = 0
-play.dt[measure == "attack0", death_para:=.00001]
-play.dt[measure == "attack1", death_para:=.00001]
-play.dt[measure == "attack2", death_para:=.00009]
-play.dt[measure == "attack3", death_para:=.00134]
-play.dt[measure == "attack4", death_para:=.01170]  
-
-#death_para
-play.dt$death_para_hr = 0
-play.dt[measure == "attack0", death_para_hr:=.00004]
-play.dt[measure == "attack1", death_para_hr:=.00001]
-play.dt[measure == "attack2", death_para_hr:=.00009]
-play.dt[measure == "attack3", death_para_hr:=.00134]
-play.dt[measure == "attack4", death_para_hr:=.01170]  
-
-## renaming "attack" to age groups
-play.dt[measure == "attack0", measure:= "0to4"]
-play.dt[measure == "attack1", measure:= "5to18"]
-play.dt[measure == "attack2", measure:= "19to29"]
-play.dt[measure == "attack3", measure:= "30to64"]
-play.dt[measure == "attack4", measure:= "65"]
+agegroup[risk == "low", oupt_para := c(0.455, 0.318, 0.313, 0.313, 0.620) ]
+agegroup[risk == "high", oupt_para := c(0.910, 0.635, 0.625, 0.625, 0.820) ]
+agegroup[risk == "low", hosp_para :=c(0.0141, 0.0006, 0.0042, 0.0193, 0.0421) ]
+agegroup[risk == "high", hosp_para :=c(0.0141, 0.0006, 0.0042, 0.0193, 0.0421) ]
+agegroup[risk == "low", death_para :=c(0.00004, 0.00001, 0.00009, 0.00134, 0.01170) ]
+agegroup[risk == "high", death_para :=c(0.00004, 0.00001, 0.00009, 0.00134, 0.01170) ]
+agegroup[risk == "low", otc_para := 1 - oupt_para - hosp_para - death_para ]
+agegroup[risk == "high", otc_para := 1 - oupt_para - hosp_para - death_para ]
 
 ############################
 # Calculations for cases
-#OTC low risk
-play.dt$otc_cases <- play.dt$otc_para * play.dt$lrisk 
 
-#outpt high risk 
-play.dt$otc_cases_hr <- play.dt$otc_para_hr * play.dt$hrisk 
+thing <- merge(agegroup, play.dt, allow.cartesian = T, by=c("AgeGroup","risk"))
+
+cases.dt <- thing[, list(scenario, r, vax, AgeGroup, risk,
+  otc = otc_para*pop, 
+  oupt = oupt_para *pop,
+  hosp = hosp_para *pop,
+  death = death_para *pop
+)]
+
+cases.melt <- melt(cases.dt, id.vars = c("AgeGroup","scenario","r","vax","risk"), variable.name = "event" )
+
+plotdata.dt <- cases.melt[scenario == "hom", list(total = sum(value)), by=c("AgeGroup","event","r","vax") ]
+plotdata.dt[, vax_rate := c(0.26, seq(0.30, 0.80, by=0.05))[as.numeric(vax)+1]]
+plotdata.dt$r <- as.numeric(as.character(plotdata.dt$r))
+levels(plotdata.dt$event) <- c("OTC","Outpatient","Hospitalization","Death")
+
+ggplot(plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/10000, color=r, group=r) + 
+  facet_grid(event ~ AgeGroup, scales = "free_y") + geom_line() + scale_y_continuous(name="10k cases") +
+  scale_color_continuous(low="blue", high="red", name=expression(R[0])) + xlab("Vaccination Rate in 5-18 year olds")
+
+## or
+
+ggplot(plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/10000, fill=AgeGroup, group=r) + 
+  facet_grid(event ~ r, scales = "free_y") + geom_bar(stat="identity") + ylab("10k cases") + xlab("Vaccination Rate in 5-18 year olds")
 
 # OTC total
-play.dt$otc_cases_t <- play.dt$otc_cases + play.dt$otc_cases_hr
-
-###############
-#outpt low risk 
-play.dt$oupt_cases <- play.dt$oupt_para * play.dt$lrisk
-
-#outpt high risk 
-play.dt$oupt_cases_hr <- play.dt$oupt_para_hr * play.dt$hrisk
+cases.dt[,otc_cases_t := otc_cases + otc_cases_hr]
 
 # Out total 
-play.dt$oupt_cases_t <- play.dt$oupt_cases + play.dt$oupt_cases_hr
+cases.dt[,oupt_cases_t := oupt_cases + oupt_cases_hr]
 
-##############
-#hosp low risk 
-play.dt$hosp_cases <- play.dt$hosp_para * play.dt$lrisk 
-
-#hosp high risk 
-play.dt$hosp_cases_hr <- play.dt$hosp_para_hr * play.dt$hrisk 
-
-#total
-play.dt$hosp_cases_t <- play.dt$hosp_cases + play.dt$hosp_cases_hr
-
-################
-# death low risk 
-play.dt$death_cases <- play.dt$death_para * play.dt$lrisk 
-
-# death high risk 
-play.dt$death_cases_hr <- play.dt$death_para_hr * play.dt$hrisk 
+# hosp total
+cases.dt[,hosp_cases_t := hosp_cases + hosp_cases_hr]
 
 # death total 
-play.dt$death_cases_t <- play.dt$death_cases + play.dt$death_cases_hr
+cases.dt[,death_cases_t := death_cases + death_cases_hr]
+
 ################################
 
 ### Calculations for cost
-#OTC low risk
-play.dt$otc_cost <- play.dt$otc_para * play.dt$lrisk * play.dt$otc
+costs.dt <- agegroup[cases.dt, list(scenario, r, vax, 
+  otc_cost = otc_cases * otc, #OTC low risk
+  otc_cost_hr = otc_cases_hr * otc, #OTC high risk # CABP: no otc hr?
+  oupt_cost = oupt_cases * oupt, #outpt low risk
+  oupt_cost_hr = oupt_cases_hr * oupt_hr, #outpt high risk
+  hosp_cost = hosp_cases * hosp, #hosp low risk 
+  hosp_cost_hr = hosp_cases_hr * hosp_hr, #hosp high risk
+  death_cost = death_cases * death, # death low risk
+  death_cost_hr = death_cases_hr * death_hr # death high risk
+)]
 
-#outpt high risk 
-play.dt$otc_cost_hr <- play.dt$otc_para_hr * play.dt$hrisk * play.dt$otc
+costs.melt <- melt(costs.dt, id.vars = c("AgeGroup","scenario","r","vax") )
 
-#outpt low risk 
-play.dt$oupt_cost <- play.dt$oupt_para * play.dt$lrisk* play.dt$oupt
+costs.melt[, risk := factor(ifelse(grepl("_hr", as.character(variable)),"high","low"))]
+costs.melt[, event := factor(sub("_cost.*","",as.character(variable)))]
+costs.melt$variable <- NULL
 
-#outpt high risk 
-play.dt$oupt_cost_hr <- play.dt$oupt_para_hr * play.dt$hrisk* play.dt$oupt_hr
+costs.dt[, medsumIN := oupt_cost + oupt_cost_hr + hosp_cost + hosp_cost_hr +
+           death_cost +  death_cost_hr]
 
-#hosp low risk 
-play.dt$hosp_cost <- play.dt$hosp_para * play.dt$lrisk * play.dt$hosp
+costs.dt[, medsum := otc_cost + otc_cost_hr + medsumIN]
 
-#hosp high risk 
-play.dt$hosp_cost_hr <- play.dt$hosp_para_hr * play.dt$hrisk * play.dt$hosp_hr
+require(ggplot)
 
-# death low risk 
-play.dt$death_cost <- play.dt$death_para * play.dt$lrisk * play.dt$death
-
-# hosp high risk 
-play.dt$death_cost_hr <- play.dt$death_para_hr * play.dt$hrisk * play.dt$death_hr
-
-
-#### adding all the costs but individual 
-play.dt$medsum = play.dt$otc_cost + play.dt$otc_cost_hr +  
-  play.dt$oupt_cost + play.dt$oupt_cost_hr + play.dt$hosp_cost + play.dt$hosp_cost_hr +
-  play.dt$death_cost +  play.dt$death_cost_hr
-
-## without OTC
-play.dt$medsumIN = play.dt$oupt_cost + play.dt$oupt_cost_hr + play.dt$hosp_cost + play.dt$hosp_cost_hr +
-  play.dt$death_cost +  play.dt$death_cost_hr
+ggplot()
 
 #########################################################
 ## Exporting to files to make barcharts
