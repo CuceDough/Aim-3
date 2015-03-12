@@ -119,9 +119,7 @@ agegroup[risk == "high", otc_para := 1 - oupt_para - hosp_para - death_para ]
 ############################
 # Calculations for cases
 
-thing <- merge(agegroup, play.dt, allow.cartesian = T, by=c("AgeGroup","risk"))
-
-cases.dt <- thing[, list(scenario, r, vax, AgeGroup, risk,
+cases.dt <- merge(agegroup, play.dt, allow.cartesian = T, by=c("AgeGroup","risk"))[, list(scenario, r, vax, AgeGroup, risk,
   otc = otc_para*pop, 
   oupt = oupt_para *pop,
   hosp = hosp_para *pop,
@@ -130,75 +128,61 @@ cases.dt <- thing[, list(scenario, r, vax, AgeGroup, risk,
 
 cases.melt <- melt(cases.dt, id.vars = c("AgeGroup","scenario","r","vax","risk"), variable.name = "event" )
 
-plotdata.dt <- cases.melt[scenario == "hom", list(total = sum(value)), by=c("AgeGroup","event","r","vax") ]
+plotdata.dt <- cases.melt[scenario == "hom" & r == 1.4, list(total = sum(value)), by=c("AgeGroup","event","r","vax") ]
 plotdata.dt[, vax_rate := c(0.26, seq(0.30, 0.80, by=0.05))[as.numeric(vax)+1]]
 plotdata.dt$r <- as.numeric(as.character(plotdata.dt$r))
 levels(plotdata.dt$event) <- c("OTC","Outpatient","Hospitalization","Death")
 
-ggplot(plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/10000, color=r, group=r) + 
+baseplot <- ggplot(plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/10000)
+
+baseplot + aes(color=r, group=r) +
   facet_grid(event ~ AgeGroup, scales = "free_y") + geom_line() + scale_y_continuous(name="10k cases") +
   scale_color_continuous(low="blue", high="red", name=expression(R[0])) + xlab("Vaccination Rate in 5-18 year olds")
 
 ## or
 
-ggplot(plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/10000, fill=AgeGroup, group=r) + 
+baseplot + aes(fill=AgeGroup, group=r) + 
   facet_grid(event ~ r, scales = "free_y") + geom_bar(stat="identity") + ylab("10k cases") + xlab("Vaccination Rate in 5-18 year olds")
 
 
 ##########################################################
 #######################################################
 
-ggplot(plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/10000, fill=AgeGroup) + 
+baseplot + aes(fill=AgeGroup) + 
   facet_grid(event ~ ., scales = "free_y") + geom_bar(stat="identity", position = "dodge") + ylab("10k cases") + xlab("Vaccination Rate in 5-18 year olds")
 
 
+baseplot + aes(fill=AgeGroup) + 
+  facet_grid(r ~ event) + geom_bar(stat="identity", position = "stack") + ylab("10k cases") + xlab("Vaccination Rate in 5-18 year olds") + coord_flip()
 
-
-
-
-
-
-#############################################
-# OTC total
-cases.dt[,otc_cases_t := otc_cases + otc_cases_hr]
-
-# Out total 
-cases.dt[,oupt_cases_t := oupt_cases + oupt_cases_hr]
-
-# hosp total
-cases.dt[,hosp_cases_t := hosp_cases + hosp_cases_hr]
-
-# death total 
-cases.dt[,death_cases_t := death_cases + death_cases_hr]
 
 ################################
 
 ### Calculations for cost
-costs.dt <- agegroup[cases.dt, list(scenario, r, vax, 
-  otc_cost = otc_cases * otc, #OTC low risk
-  otc_cost_hr = otc_cases_hr * otc, #OTC high risk # CABP: no otc hr?
-  oupt_cost = oupt_cases * oupt, #outpt low risk
-  oupt_cost_hr = oupt_cases_hr * oupt_hr, #outpt high risk
-  hosp_cost = hosp_cases * hosp, #hosp low risk 
-  hosp_cost_hr = hosp_cases_hr * hosp_hr, #hosp high risk
-  death_cost = death_cases * death, # death low risk
-  death_cost_hr = death_cases_hr * death_hr # death high risk
-)]
+costs.dt <- merge(agegroup, cases.dt, by=c("AgeGroup","risk"), allow.cartesian = T, suffixes = c(".cost",".cases"))[, list(
+  otc = sum(otc.cases * otc.cost), #OTC low risk
+  oupt = sum(oupt.cases * oupt.cost), #outpt low risk
+  hosp = sum(hosp.cases * hosp.cost), #hosp low risk 
+  death = sum(death.cases * death.cost) # death low risk
+), by=c("scenario","vax","r","AgeGroup")]
 
-costs.melt <- melt(costs.dt, id.vars = c("AgeGroup","scenario","r","vax") )
+costs.melt <- melt(costs.dt, id.vars = c("AgeGroup","scenario","r","vax"), variable.name = "event", value.name = "cost" )
 
-costs.melt[, risk := factor(ifelse(grepl("_hr", as.character(variable)),"high","low"))]
-costs.melt[, event := factor(sub("_cost.*","",as.character(variable)))]
-costs.melt$variable <- NULL
+costplotdata.dt <- costs.melt[scenario == "hom" & r == 1.4]
+costplotdata.dt[, vax_rate := c(0.26, seq(0.30, 0.80, by=0.05))[as.numeric(vax)+1]]
+costplotdata.dt$r <- as.numeric(as.character(costplotdata.dt$r))
+levels(costplotdata.dt$event) <- c("OTC","Outpatient","Hospitalization","Death")
 
-costs.dt[, medsumIN := oupt_cost + oupt_cost_hr + hosp_cost + hosp_cost_hr +
-           death_cost +  death_cost_hr]
+#costs.dt[, medsumIN := oupt_cost + oupt_cost_hr + hosp_cost + hosp_cost_hr +
+#           death_cost +  death_cost_hr]
 
-costs.dt[, medsum := otc_cost + otc_cost_hr + medsumIN]
+#costs.dt[, medsum := otc_cost + otc_cost_hr + medsumIN]
 
-require(ggplot)
+costbaseplot <- ggplot(costplotdata.dt) + theme_bw() + aes(x=vax_rate, y = cost/1e6) 
 
-ggplot()
+costbaseplot + aes(fill=AgeGroup) + 
+  facet_grid(r ~ event) + geom_bar(stat="identity", position = "stack") + ylab("1M $") + xlab("Vaccination Rate in 5-18 year olds") + coord_flip()
+
 
 #########################################################
 ## Exporting to files to make barcharts
