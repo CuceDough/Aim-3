@@ -31,6 +31,7 @@ setwd(cf)
 # dzweyker.dt <- data.table(dzweyker) 
 
 require(data.table)
+require(ggplot2)
 
 # Reading in raw data 
 
@@ -143,6 +144,21 @@ ggplot(plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/10000, color=r, gro
 ggplot(plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/10000, fill=AgeGroup, group=r) + 
   facet_grid(event ~ r, scales = "free_y") + geom_bar(stat="identity") + ylab("10k cases") + xlab("Vaccination Rate in 5-18 year olds")
 
+
+##########################################################
+#######################################################
+
+ggplot(plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/10000, fill=AgeGroup) + 
+  facet_grid(event ~ ., scales = "free_y") + geom_bar(stat="identity", position = "dodge") + ylab("10k cases") + xlab("Vaccination Rate in 5-18 year olds")
+
+
+
+
+
+
+
+
+#############################################
 # OTC total
 cases.dt[,otc_cases_t := otc_cases + otc_cases_hr]
 
