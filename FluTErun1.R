@@ -8,20 +8,20 @@ options(scipen=999)
 #####
 # SET WORKING DIRECTORY CONDITIONAL TO SYSTEM
 #####
-if ( Sys.info()["sysname"] == "Linux" ){
-  cf <- "/home/joebrew/Documents/controlflu"
-  linux_path <- "/media/joebrew/JB/fdoh/private/"
-  acps_path <-  "/media/joebrew/JB/fdoh/private/acps/" #"E:/fdoh/private/acps/"
-} else if( Sys.info()["user"] == "BrewJR"){
-  cf <- "C:/Users/BrewJR/Documents/controlflu"
-  linux_path <- "E:/fdoh/private/"
-  acps_path <-  "E:/fdoh/private/acps/"
-} else if( Sys.info()["user"] == "C"){
-  cf <- "C:/Users/C/Documents/controlflu"
-  linux_path <- NULL
-  acps_path <-  NULL
-}
-setwd(cf) 
+# if ( Sys.info()["sysname"] == "Linux" ){
+#   cf <- "/home/joebrew/Documents/controlflu"
+#   linux_path <- "/media/joebrew/JB/fdoh/private/"
+#   acps_path <-  "/media/joebrew/JB/fdoh/private/acps/" #"E:/fdoh/private/acps/"
+# } else if( Sys.info()["user"] == "BrewJR"){
+#   cf <- "C:/Users/BrewJR/Documents/controlflu"
+#   linux_path <- "E:/fdoh/private/"
+#   acps_path <-  "E:/fdoh/private/acps/"
+# } else if( Sys.info()["user"] == "C"){
+#   cf <- "C:/Users/C/Documents/controlflu"
+#   linux_path <- NULL
+#   acps_path <-  NULL
+# }
+# setwd(cf) 
 
 #####################################################################################################
 #####################################################################################################
@@ -32,49 +32,68 @@ setwd(cf)
 
 require(data.table)
 require(ggplot2)
+require(reshape2)
 
 # Reading in raw data 
 
 #2013 population data 
-agegroup <- data.table(read.csv("Agegroupop.csv"))
-setnames(agegroup, c("AgeGroup","Population"))
-levels(agegroup$AgeGroup) <- c("0-4","19-29","30-64","5-18","65+")
-agegroup$AgeGroup <- factor(agegroup$AgeGroup, levels=c("0-4","5-18","19-29","30-64","65+"))
-agegroup <- rbind(agegroup[,list(Population, risk=factor("high",levels=c("low","high"))), by=c("AgeGroup")],agegroup[,list(Population, risk=factor("low",levels=c("low","high"))), by=c("AgeGroup")])
-## High Risk Popluation 
-#adding high risk 
-agegroup[risk == "high", population := c(.052, .106, .149, .330, .512)*Population ]
-agegroup[risk == "low", population := (1-c(.052, .106, .149, .330, .512))*Population ]
-setkey(agegroup, AgeGroup, risk)
+{function() {
+  agedata <- data.table(read.csv("Agegroupop.csv"))
+  setnames(agedata, c("AgeGroup","Population"))
+  levels(agedata$AgeGroup) <- c("0-4","19-29","30-64","5-18","65+")
+  agedata[,AgeGroup := factor(AgeGroup, levels=c("0-4","5-18","19-29","30-64","65+"))]
+  high_risk_proportion <- c(.052, .106, .149, .330, .512) ## by age categories
+  temp <- rbind(
+    agedata[,list(AgeGroup,
+                  population = Population*high_risk_proportion, 
+                  risk=factor("high",levels=c("normal","high"))
+    )],
+    agedata[,list(AgeGroup,
+                  population = Population*(1-high_risk_proportion),
+                  risk=factor("normal",levels=c("normal","high"))
+    )]
+  )
+  setkey(temp, AgeGroup, risk)
+  temp
+}}() -> agegroup
+
+## to recover Population: agegroup[,list(Population = sum(population)),by=AgeGroup]
+
 
 #FluTE Run 2.27.15
-run <- data.table(read.csv("runs.csv"))
-run$r <- factor(run$r)
-
-require(reshape2)
-
-# melt the data 
-run.melt <- melt(run, variable.name="AgeGroup", value.name="AttackRate", id.vars=c("scenario","r"))
+run.melt <- melt(data.table(read.csv("runs.csv")), variable.name="AgeGroup", value.name="AttackRate", id.vars=c("scenario","r"))
 ## might want to realign levels for certainty in this next step, but in this case we know they are attack0, attack1, etc
 levels(run.melt$AgeGroup) <- levels(agegroup$AgeGroup)
-setkey(run.melt, scenario, r, AgeGroup)
+run.melt[, vax := as.numeric(sub("(hom|het|base)","",as.character(scenario)))]
+run.melt[, scenario := factor(sub("\\d+","", as.character(scenario)))]
 
-measures.dt <- run.melt[,list(AveAttackRate=mean(AttackRate), SDAttackRate=sd(AttackRate)), by=c("scenario","r","AgeGroup")]
+no_vax_rate <- 0.26
+base_vax_rate <- 0.30
+vax_increment <- 0.05
+vax_sequence <- c(no_vax_rate, seq(from=base_vax_rate, by=vax_increment, length.out = max(run.melt$vax, na.rm=T)))
 
-#split scenario into scenario (base, hom, het) and vax program (1-11, "" for base)
-measures.dt[, vax := sub("(hom|het|base)","",as.character(scenario))]
-measures.dt[, scenario := factor(sub("\\d+","", as.character(scenario)))]
-setkey(measures.dt, scenario, r, vax, AgeGroup)
+run.melt[!is.na(vax), vax_rate := vax_sequence[vax+1]]
+run.melt[is.na(vax), vax_rate := 0]
+run.melt$vax <- NULL
+
+# run.melt[scenario == "base" & r == 1.2, list(AgeGroup,1:10),by=c("scenario","r","vax_rate")]
+
+setkey(run.melt, scenario, r, vax_rate, AgeGroup)
+
+target_confidence <- 0.95
+lbound <- (1-target_confidence)/2
+ubound <- 1 - lbound
+
+measures.dt <- run.melt[, ## n.b., this will be a lot better when we have reasonable sample sizes
+  list(
+    lower = quantile(AttackRate, lbound),
+    median = quantile(AttackRate, 0.5),
+    upper = quantile(AttackRate, ubound)
+  ), by=c("scenario","r","vax_rate","AgeGroup")
+]
 
 write.csv (measures.dt, file= "measures.1.csv")
 
-#made into an orrdered factor 
-#as.ordered(measures.dt$vax) 
-
-#as.ordered(measures.dt$r)
-
-#measures.dt1 <- measures.dt[, sum(mean*pop), by=c("scenario","r")] #carls orginal code. But I need also by measure (which is age group also)
-#measures.dt$SD <- measures.dt [,(sd*pop)] *Ignore for now 
 measures.dttest <- merge(agegroup, measures.dt, by="AgeGroup", allow.cartesian = T) #agegroup[measures.dt, list(pop = AveAttackRate*population), by=c("scenario", "vax", "r", "risk")]
 measures.dttest[, pop := population*AveAttackRate]
 measures.dttest$Population <- NULL
@@ -116,6 +135,9 @@ agegroup[risk == "high", death_para :=c(0.00004, 0.00001, 0.00009, 0.00134, 0.01
 agegroup[risk == "low", otc_para := 1 - oupt_para - hosp_para - death_para ]
 agegroup[risk == "high", otc_para := 1 - oupt_para - hosp_para - death_para ]
 
+## n.b., this does not allow for "no treatment"
+## also, no analysis of lost productivity?
+
 ############################
 # Calculations for cases
 
@@ -153,7 +175,8 @@ baseplot + aes(fill=AgeGroup) +
 
 
 baseplot + aes(fill=AgeGroup) + 
-  facet_grid(r ~ event) + geom_bar(stat="identity", position = "stack") + ylab("10k cases") + xlab("Vaccination Rate in 5-18 year olds") + coord_flip()
+  facet_grid(event ~ r, scales = "free_y") + geom_bar(stat="identity") +
+  ylab("10k outcomes") + xlab("Vacc. Proportion in 5-18 year olds")
 
 
 ################################
