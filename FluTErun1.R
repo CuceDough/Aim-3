@@ -37,11 +37,14 @@ require(reshape2)
 # Reading in raw data 
 
 #2013 population data 
-{function() {
-  agedata <- data.table(read.csv("Agegroupop.csv"))
+loadDemoData <- function(target = "Agegroupop.csv") {
+  agedata <- data.table(read.csv(target))
   setnames(agedata, c("AgeGroup","Population"))
-  levels(agedata$AgeGroup) <- c("0-4","19-29","30-64","5-18","65+")
-  agedata[,AgeGroup := factor(AgeGroup, levels=c("0-4","5-18","19-29","30-64","65+"))]
+  newLevels <- sub("to","-", levels(agedata$AgeGroup))
+  newLevels <- sub("^(\\d+)$","\\1+", newLevels)
+  levels(agedata$AgeGroup) <- newLevels
+  newOrder <- newLevels[order(as.numeric(sub("^(\\d+).+","\\1", newLevels)))]
+  agedata[,AgeGroup := factor(AgeGroup, levels=newOrder)]
   high_risk_proportion <- c(.052, .106, .149, .330, .512) ## by age categories
   temp <- rbind(
     agedata[,list(AgeGroup,
@@ -55,30 +58,46 @@ require(reshape2)
   )
   setkey(temp, AgeGroup, risk)
   temp
-}}() -> agegroup
+}
+
+agegroup <- loadDemoData() 
 
 ## to recover Population: agegroup[,list(Population = sum(population)),by=AgeGroup]
 
 
 #FluTE Run 2.27.15
-run.melt <- melt(data.table(read.csv("runs.csv")), variable.name="AgeGroup", value.name="AttackRate", id.vars=c("scenario","r"))
-## might want to realign levels for certainty in this next step, but in this case we know they are attack0, attack1, etc
-levels(run.melt$AgeGroup) <- levels(agegroup$AgeGroup)
-run.melt[, vax := as.numeric(sub("(hom|het|base)","",as.character(scenario)))]
-run.melt[, scenario := factor(sub("\\d+","", as.character(scenario)))]
+loadSimData <- function(
+  target = "runs.csv", referenceDemo = agegroup, scenarioNames = c("hom","het","base"),
+  no_sliv_rate = 0.26, min_sliv_rate = 0.3, max_sliv_rate = 0.8
+) {
+  run.melt <- melt(data.table(read.csv("runs.csv")), variable.name="AgeGroup", value.name="AttackRate", id.vars=c("scenario","r"))
+  ## might want to realign levels for certainty in this next step, but in this case we know they are attack0, attack1, etc
+  levels(run.melt$AgeGroup) <- levels(referenceDemo$AgeGroup)
+  ignore <- paste0("(",paste(scenarioNames,collapse="|"),")")
+  run.melt[, vax := as.numeric(sub(ignore,"",as.character(scenario)))]
+  run.melt[, scenario := factor(sub("\\d+","", as.character(scenario)))]
+  
 
-no_vax_rate <- 0.26
-base_vax_rate <- 0.30
-vax_increment <- 0.05
-vax_sequence <- c(no_vax_rate, seq(from=base_vax_rate, by=vax_increment, length.out = max(run.melt$vax, na.rm=T)))
+  vax_sequence <- c(no_sliv_rate, seq(from=min_sliv_rate, to=max_sliv_rate, length.out = max(run.melt$vax, na.rm=T)))
+  
+  run.melt[!is.na(vax), vax_rate := vax_sequence[vax+1]]
+  run.melt[is.na(vax), vax_rate := 0]
+  run.melt$vax <- NULL
+  setkey(run.melt, scenario, r, vax_rate, AgeGroup)
+  run.melt
+}
 
-run.melt[!is.na(vax), vax_rate := vax_sequence[vax+1]]
-run.melt[is.na(vax), vax_rate := 0]
-run.melt$vax <- NULL
+run.melt <- loadSimData()
 
 # run.melt[scenario == "base" & r == 1.2, list(AgeGroup,1:10),by=c("scenario","r","vax_rate")]
 
-setkey(run.melt, scenario, r, vax_rate, AgeGroup)
+createAttackTable <- function(demoData = agegroup, runData = run.melt) {
+  res <- merge(run.melt, agegroup, by="AgeGroup", allow.cartesian=T)
+  res[,bulk_cases := population*AttackRate]
+  setkeyv(res, key(run.melt))
+}
+
+attack.dt <- createAttackTable()
 
 target_confidence <- 0.95
 lbound <- (1-target_confidence)/2
