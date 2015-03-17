@@ -8,20 +8,22 @@ options(scipen=999)
 #####
 # SET WORKING DIRECTORY CONDITIONAL TO SYSTEM
 #####
-if ( Sys.info()["sysname"] == "Linux" ){
-  cf <- "/home/joebrew/Documents/controlflu"
-  linux_path <- "/media/joebrew/JB/fdoh/private/"
-  acps_path <-  "/media/joebrew/JB/fdoh/private/acps/" #"E:/fdoh/private/acps/"
-} else if( Sys.info()["user"] == "BrewJR"){
-  cf <- "C:/Users/BrewJR/Documents/controlflu"
-  linux_path <- "E:/fdoh/private/"
-  acps_path <-  "E:/fdoh/private/acps/"
-} else if( Sys.info()["user"] == "C"){
-  cf <- "C:/Users/C/Documents/controlflu"
-  linux_path <- NULL
-  acps_path <-  NULL
-}
-setwd(cf) 
+# if ( Sys.info()["sysname"] == "Linux" ){
+#   cf <- "/home/joebrew/Documents/controlflu"
+#   linux_path <- "/media/joebrew/JB/fdoh/private/"
+#   acps_path <-  "/media/joebrew/JB/fdoh/private/acps/" #"E:/fdoh/private/acps/"
+# } else if( Sys.info()["user"] == "BrewJR"){
+#   cf <- "C:/Users/BrewJR/Documents/controlflu"
+#   linux_path <- "E:/fdoh/private/"
+#   acps_path <-  "E:/fdoh/private/acps/"
+# } else if( Sys.info()["user"] == "C"){
+#   cf <- "C:/Users/C/Documents/controlflu"
+#   linux_path <- NULL
+#   acps_path <-  NULL
+# }
+# setwd(cf) 
+
+setwd("~/GitHub/Aim-3")
 
 #####################################################################################################
 #####################################################################################################
@@ -66,7 +68,7 @@ measures.dt[, vax := sub("(hom|het|base)","",as.character(scenario))]
 measures.dt[, scenario := factor(sub("\\d+","", as.character(scenario)))]
 setkey(measures.dt, scenario, r, vax, AgeGroup)
 
-write.csv (measures.dt, file= "measures.1.csv")
+#write.csv (measures.dt, file= "measures.1.csv")
 
 #made into an orrdered factor 
 #as.ordered(measures.dt$vax) 
@@ -145,17 +147,68 @@ baseplot + aes(fill=AgeGroup, group=r) +
   facet_grid(event ~ r, scales = "free_y") + geom_bar(stat="identity") + ylab("10k cases") + xlab("Vaccination Rate in 5-18 year olds")
 
 
+#########################################################################
+#########################################################################
+## Cuc's attempt to make plots look better 
+
+baseplot + aes(fill=AgeGroup, group=r) + scale_fill_brewer(palette="Set1") + #color scale
+  facet_grid(event ~ r, scales = "free_y") + geom_bar(stat="identity") + ylab("Cases per 10,000") + xlab("Vaccination Rate in 5-18 year olds") +
+  theme(axis.title.y = element_text(size = rel(1.3), angle = 90, face = "bold")) +  #works making font larger
+  theme(axis.title.x = element_text(size = rel(1.3), angle = 00, face = "bold")) +
+  theme(axis.text = element_text(size = rel(1.2), colour = "black")) + # text sixe for axis number 
+  theme(legend.title = element_text(colour="Black", size=12, face="bold")) + 
+  scale_color_discrete(name=" Age Group") + #names legend 
+  theme(legend.text=element_text(size=10, face= "bold")) + # makes size and font for legend 
+  theme(legend.key = element_blank()) + # gets rid of borders
+  theme(strip.text.x = element_text(colour = 'lightgrey', size = 12 )) +
+  theme(strip.text.y = element_text(colour = 'black', size = 12, face = "bold")) 
+
+#####################################################################################
+#####################################################################################
+
+############### #Cuc 
+# Goal 1: Make lables larger 
+# Goal 2: Make major axis larger
+# Goal 3: Make CIs
+
+################################################### 
+### Code to show that CI's can't be done on stacked axis 
+
+library (plyr)
+# Essentially, I'm creating seperate files for each outcome so I can get summary stats
+
+Cuccases.melt <- cases.melt
+
+newdata <- subset(Cuccases.melt, scenario == "hom" & r== 1.4,
+                  select=c("AgeGroup", "scenario",	"r",	"vax",	
+                  "risk",	"event",	"value")) 
+
+
+cdata <- ddply(newdata, c("AgeGroup", "event" , "vax"), summarise,
+               N    = length(value),
+               mean = mean(value),
+               sd   = sd(value),
+               se   = sd / sqrt(N) )
+
+Otc <- subset (cdata, event == "otc", 
+               select=c("AgeGroup", 	
+                        "vax",	"event",	"mean" , "N", "sd", "se"))
+
+Otc.dt <- data.table (Otc) #make data table 
+
+Otc.dt[, vax_rate := c(0.26, seq(0.30, 0.80, by=0.05))[as.numeric(vax)+1]] #make new variable
+
+#  Use 95% confidence intervals instead of SEM
+ggplot(Otc.dt, aes(x=vax_rate, y=mean,  fill=AgeGroup)) + 
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean-se),
+                width=.2,                    # Width of the error bars
+                )
+
+
+
 ##########################################################
-#######################################################
-
-baseplot + aes(fill=AgeGroup) + 
-  facet_grid(event ~ ., scales = "free_y") + geom_bar(stat="identity", position = "dodge") + ylab("10k cases") + xlab("Vaccination Rate in 5-18 year olds")
-
-
-baseplot + aes(fill=AgeGroup) + 
-  facet_grid(r ~ event) + geom_bar(stat="identity", position = "stack") + ylab("10k cases") + xlab("Vaccination Rate in 5-18 year olds") + coord_flip()
-
-
+######################################################
 ################################
 
 ### Calculations for cost
