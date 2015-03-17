@@ -122,10 +122,10 @@ agegroup[risk == "high", otc_para := 1 - oupt_para - hosp_para - death_para ]
 # Calculations for cases
 
 cases.dt <- merge(agegroup, play.dt, allow.cartesian = T, by=c("AgeGroup","risk"))[, list(scenario, r, vax, AgeGroup, risk,
-  otc = otc_para*pop, 
-  oupt = oupt_para *pop,
-  hosp = hosp_para *pop,
-  death = death_para *pop
+  otc_case = otc_para*pop, 
+  oupt_case = oupt_para *pop,
+  hosp_case = hosp_para *pop,
+  death_case = death_para *pop
 )]
 
 cases.melt <- melt(cases.dt, id.vars = c("AgeGroup","scenario","r","vax","risk"), variable.name = "event" )
@@ -149,7 +149,7 @@ baseplot + aes(fill=AgeGroup, group=r) +
 
 #########################################################################
 #########################################################################
-## Cuc's attempt to make plots look better 
+## Cuc's attempt to make plots look better (Success!)
 
 baseplot + aes(fill=AgeGroup, group=r) + scale_fill_brewer(palette="Set1") + #color scale
   facet_grid(event ~ r, scales = "free_y") + geom_bar(stat="identity") + ylab("Cases per 10,000") + xlab("Vaccination Rate in 5-18 year olds") +
@@ -165,7 +165,37 @@ baseplot + aes(fill=AgeGroup, group=r) + scale_fill_brewer(palette="Set1") + #co
 
 #####################################################################################
 #####################################################################################
+# Outcomes Cost 
 
+cost_cases.dt <- merge(agegroup, cases.dt, allow.cartesian = T, by=c("AgeGroup","risk"))[, list(scenario, r, vax, AgeGroup, risk,
+                Otc_cost = otc_case * otc, 
+                Oupt_cost = oupt_case * oupt,
+                Hosp_cost = hosp_case * hosp,
+                Death_cost = death_case * death
+)]
+
+cost_cases.melt <- melt(cost_cases.dt, id.vars = c("AgeGroup","scenario","r","vax","risk"), variable.name = "event" )
+
+cost_plotdata.dt <- cost_cases.melt[scenario == "hom" & r == 1.4, list(total = sum(value)), by=c("AgeGroup","event","r","vax") ]
+cost_plotdata.dt[, vax_rate := c(0.26, seq(0.30, 0.80, by=0.05))[as.numeric(vax)+1]]
+cost_plotdata.dt$r <- as.numeric(as.character(plotdata.dt$r))
+levels(plotdata.dt$event) <- c("OTC","Outpatient","Hospitalization","Death")
+
+cost_baseplot <- ggplot(cost_plotdata.dt) + theme_bw() + aes(x=vax_rate, y = total/1000000)
+
+cost_baseplot + aes(fill=AgeGroup, group=r) + scale_fill_brewer(palette="Set1") + #color scale
+  facet_grid(event ~ r, scales = "free_y") + geom_bar(stat="identity") + ylab("Cost in Millions, $") + xlab("Vaccination Rate in 5-18 year olds") +
+  theme(axis.title.y = element_text(size = rel(1.3), angle = 90, face = "bold")) +  #works making font larger
+  theme(axis.title.x = element_text(size = rel(1.3), angle = 00, face = "bold")) +
+  theme(axis.text = element_text(size = rel(1.2), colour = "black")) + # text sixe for axis number 
+  theme(legend.title = element_text(colour="Black", size=12, face="bold")) + 
+  scale_color_discrete(name=" Age Group") + #names legend 
+  theme(legend.text=element_text(size=10, face= "bold")) + # makes size and font for legend 
+  theme(legend.key = element_blank()) + # gets rid of borders
+  theme(strip.text.x = element_text(colour = 'lightgrey', size = 12 )) +
+  theme(strip.text.y = element_text(colour = 'black', size = 12, face = "bold")) 
+
+#########################################################################
 ############### #Cuc 
 # Goal 1: Make lables larger 
 # Goal 2: Make major axis larger
