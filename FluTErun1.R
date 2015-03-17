@@ -70,7 +70,9 @@ loadSimData <- function(
   target = "runs.csv", referenceDemo = agegroup, scenarioNames = c("hom","het","base"),
   no_sliv_rate = 0.26, min_sliv_rate = 0.3, max_sliv_rate = 0.8
 ) {
-  run.melt <- melt(data.table(read.csv("runs.csv")), variable.name="AgeGroup", value.name="AttackRate", id.vars=c("scenario","r"))
+  runs <- data.table(read.csv("runs.csv"))
+  runs[,sample:=seq(1,.N),by=c("r","scenario")]
+  run.melt <- melt(runs, variable.name="AgeGroup", value.name="AttackRate", id.vars=c("scenario","r","sample"))
   ## might want to realign levels for certainty in this next step, but in this case we know they are attack0, attack1, etc
   levels(run.melt$AgeGroup) <- levels(referenceDemo$AgeGroup)
   ignore <- paste0("(",paste(scenarioNames,collapse="|"),")")
@@ -80,10 +82,9 @@ loadSimData <- function(
 
   vax_sequence <- c(no_sliv_rate, seq(from=min_sliv_rate, to=max_sliv_rate, length.out = max(run.melt$vax, na.rm=T)))
   
-  run.melt[!is.na(vax), vax_rate := vax_sequence[vax+1]]
-  run.melt[is.na(vax), vax_rate := 0]
+  run.melt[, vax_rate := ifelse(is.na(vax), 0, vax_sequence[vax+1])]
   run.melt$vax <- NULL
-  setkey(run.melt, scenario, r, vax_rate, AgeGroup)
+  setkey(run.melt, scenario, r, vax_rate, sample, AgeGroup)
   run.melt
 }
 
@@ -103,22 +104,22 @@ target_confidence <- 0.95
 lbound <- (1-target_confidence)/2
 ubound <- 1 - lbound
 
-measures.dt <- run.melt[, ## n.b., this will be a lot better when we have reasonable sample sizes
-  list(
-    lower = quantile(AttackRate, lbound),
-    median = quantile(AttackRate, 0.5),
-    upper = quantile(AttackRate, ubound)
-  ), by=c("scenario","r","vax_rate","AgeGroup")
-]
-
-write.csv (measures.dt, file= "measures.1.csv")
-
-measures.dttest <- merge(agegroup, measures.dt, by="AgeGroup", allow.cartesian = T) #agegroup[measures.dt, list(pop = AveAttackRate*population), by=c("scenario", "vax", "r", "risk")]
-measures.dttest[, pop := population*AveAttackRate]
-measures.dttest$Population <- NULL
-measures.dttest$population <- NULL
-# making similiar data set and subsetting 
-play.dt <- measures.dttest 
+# measures.dt <- run.melt[, ## n.b., this will be a lot better when we have reasonable sample sizes
+#   list(
+#     lower = quantile(AttackRate, lbound),
+#     median = quantile(AttackRate, 0.5),
+#     upper = quantile(AttackRate, ubound)
+#   ), by=c("scenario","r","vax_rate","AgeGroup")
+# ]
+# 
+# write.csv (measures.dt, file= "measures.1.csv")
+# 
+# measures.dttest <- merge(agegroup, measures.dt, by="AgeGroup", allow.cartesian = T) #agegroup[measures.dt, list(pop = AveAttackRate*population), by=c("scenario", "vax", "r", "risk")]
+# measures.dttest[, pop := population*AveAttackRate]
+# measures.dttest$Population <- NULL
+# measures.dttest$population <- NULL
+# # making similiar data set and subsetting 
+# play.dt <- measures.dttest 
 
 ## to decruft CT code:
 ## play.dt\[\s*measure\s*==\s*"attack[0-5]"\s*,\s*(\w+)\s*:=\s*([\.\d]+)\] replace w/ $2
@@ -127,6 +128,42 @@ play.dt <- measures.dttest
 ## CABP ASIDE: WHERE DO THESE #s COME FROM?
 
 ##### PARAMETERS COST of one of the following: 
+
+outcome_normal <- data.table(read.csv("normal_outcome_probs.csv",header = T, sep=" "))
+outcome_normal[, risk := factor("normal", levels=c("normal","high"))]
+outcome_high <- data.table(read.csv("high_outcome_probs.csv",header = T, sep=" "))
+outcome_high[, risk := factor("high", levels=c("normal","high"))]
+
+outcomes <- rbind(outcome_normal, outcome_high)
+outcomes[, OTC := 1 - (Outpatient+Hospitalization+Death)]
+setkey(outcomes, AgeGroup, risk)
+
+cases.dt <- merge(attack.dt, outcomes, by=c("AgeGroup","risk"))
+cases.dt[,Outpatient := Outpatient*bulk_cases ]
+cases.dt[,OTC := OTC*bulk_cases ]
+cases.dt[,Hospitalization := Hospitalization*bulk_cases ]
+cases.dt[,Death := Death*bulk_cases ]
+cases.melt <- melt(cases.dt[,list(
+  OTC = sum(OTC),
+  Outpatient = sum(Outpatient),
+  Hospitalization = sum(Hospitalization),
+  Death = sum(Death)
+  ), by=c("scenario","r","vax_rate","sample","AgeGroup")
+], id.vars = c("AgeGroup","scenario","r","vax_rate","sample"), variable.name = "outcome", value.name="cases")
+
+ref <- cases.melt[scenario == "hom" & r == 1.4]
+
+baseplot <- ggplot(ref) + theme_bw() +
+  aes(x=vax_rate, y = cases/10000/max(sample))
+
+baseplot + aes(fill=AgeGroup) + 
+  facet_grid(outcome ~ r, scales = "free_y") +
+  geom_bar(stat="identity") +
+  geom_errorbar(
+    data=ref[,list(total = sum(cases)), by=c("scenario", "r", "vax_rate", "outcome","sample")],
+    mapping=aes(y = total / 10000, fill=NA, group = vax_rate), alpha = 0.1,
+    outlier.size = 0, show_guide = F
+  ) + ylab("10k outcomes") + xlab("Vaccination Rate in 5-18 year olds")
 
 #OTC (all same price ) 
 agegroup$otc = 4.58
