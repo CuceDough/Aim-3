@@ -233,11 +233,14 @@ costtot[outcome != "OTC", government := cost*0.3 ]
 costtot$cost <- NULL
 costtot.melt <- melt(costtot, id.vars = c("vax_rate","sample","r","outcome"), value.name = "cost", variable.name = "payee")
 
+levels(costtot.melt$payee) <- c("Individual", "Private Insurance", "Government")
+
 ggplot(costtot.melt) + 
   aes(x=vax_rate, y = cost/1e6, fill=outcome) + 
   facet_grid(payee ~ ., scale="free_y") + 
   geom_bar(stat="identity") +
-  scale_fill_brewer(palette = "Set1")
+  scale_fill_brewer(palette = "Set1") +
+  ylab("USD Cost, Millions") + xlab("Vaccination Rate in 5-18 y.o.") + labs(fill="Outcome")
 
 
 
