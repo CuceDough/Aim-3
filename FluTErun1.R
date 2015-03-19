@@ -224,23 +224,33 @@ vax.costs.dt <- rbind(cost.merge, cost.merge[AgeGroup == "5-18", list(
 costref <- vax.costs.dt[scenario == "hom" & r == 1.4, list(cost = sum(cost_per_case*cases)), by = c("AgeGroup","vax_rate","sample","r","outcome")]
 # adsfasdfasdf
 costtot <- costref[,list(cost = sum(cost)), by=c("vax_rate", "sample","r","outcome")]
-costtot$individual <- 0
+costtot$uninsured <- 0
 costtot$private_insurance <- 0
 costtot$government <- 0
-costtot[outcome == "OTC", individual := cost]
-costtot[outcome != "OTC", private_insurance := cost*0.7 ]
-costtot[outcome != "OTC", government := cost*0.3 ]
-costtot$cost <- NULL
+costtot[outcome != "OTC", uninsured := cost * .134 ]
+costtot[outcome != "OTC", private_insurance := cost*0.642 ]
+costtot[outcome != "OTC", government := cost - uninsured - private_insurance ]
 costtot.melt <- melt(costtot, id.vars = c("vax_rate","sample","r","outcome"), value.name = "cost", variable.name = "payee")
 
-levels(costtot.melt$payee) <- c("Individual", "Private Insurance", "Government")
+## total cost
+## uninsured cost - 13.4%
+## insured cost - broken down to private 64.2% vs gov rest, not addressing individual share
 
-ggplot(costtot.melt) + 
-  aes(x=vax_rate, y = cost/1e6, fill=outcome) + 
-  facet_grid(payee ~ ., scale="free_y") + 
+levels(costtot.melt$payee) <- c("Total", "Uninsured", "Priv. Insurance", "Gov. Insurance")
+
+ggplot(costtot.melt) + theme_bw() +
+  theme(
+    axis.title = element_text(size = rel(1.3), face = "bold"),
+    axis.text = element_text(size = rel(1.2)),
+    legend.title = element_text(size=rel(1.3), face="bold"),
+    legend.text=element_text(face= "bold"),
+    strip.text = element_text(size=rel(1.3), face="bold")
+  ) +
+  aes(x=vax_rate, y = cost/1e9, fill=outcome) + 
+  facet_grid(payee ~ .) + 
   geom_bar(stat="identity") +
   scale_fill_brewer(palette = "Set1") +
-  ylab("USD Cost, Millions") + xlab("Vaccination Rate in 5-18 y.o.") + labs(fill="Outcome")
+  ylab("USD Cost, Billions") + xlab("Vaccination Rate in 5-18 y.o.") + labs(fill="Outcome")
 
 
 
