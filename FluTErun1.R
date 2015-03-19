@@ -143,53 +143,105 @@ cases.dt[,Outpatient := Outpatient*bulk_cases ]
 cases.dt[,OTC := OTC*bulk_cases ]
 cases.dt[,Hospitalization := Hospitalization*bulk_cases ]
 cases.dt[,Death := Death*bulk_cases ]
-cases.melt <- melt(cases.dt[,list(
-  OTC = sum(OTC),
-  Outpatient = sum(Outpatient),
-  Hospitalization = sum(Hospitalization),
-  Death = sum(Death)
-  ), by=c("scenario","r","vax_rate","sample","AgeGroup")
-], id.vars = c("AgeGroup","scenario","r","vax_rate","sample"), variable.name = "outcome", value.name="cases")
+cases.dt$AttackRate <- NULL
+cases.dt$bulk_cases <- NULL
 
-ref <- cases.melt[scenario == "hom" & r == 1.4]
+cases.melt <- melt(cases.dt, id.vars = c("AgeGroup","scenario","r","vax_rate","sample","risk","population"), variable.name = "outcome", value.name="cases")
+
+ref <- cases.melt[scenario == "hom" & r == 1.4, list(cases = sum(cases)), by = c("AgeGroup","vax_rate","sample","r","outcome")]
 
 baseplot <- ggplot(ref) + theme_bw() +
-  aes(x=vax_rate, y = cases/10000/max(sample))
-
-baseplot + aes(fill=AgeGroup) + 
-  facet_grid(outcome ~ r, scales = "free_y") +
-  geom_bar(stat="identity") +
-  geom_errorbar(
-    data=ref[,list(total = sum(cases)), by=c("scenario", "r", "vax_rate", "outcome","sample")],
-    mapping=aes(y = total / 10000, fill=NA, group = vax_rate), alpha = 0.1,
-    outlier.size = 0, show_guide = F
+  aes(x=vax_rate, y = cases/10000/max(sample)) +
+  theme(
+    axis.title = element_text(size = rel(1.3), face = "bold"),
+    axis.text = element_text(size = rel(1.2)),
+    legend.title = element_text(size=rel(1.3), face="bold"),
+    legend.text=element_text(face= "bold"),
+    strip.text = element_text(size=rel(1.3), face="bold")
   ) + ylab("10k outcomes") + xlab("Vaccination Rate in 5-18 year olds")
 
-#OTC (all same price ) 
-agegroup$otc = 4.58
-agegroup$otc_SD = 3.05
-#oupt low risk 
-agegroup[risk == "low", oupt := c(255, 145, 191, 229, 369) ]
-agegroup[risk == "low", oupt_SD := c(468, 393, 688, 1167, 2353) ]
-agegroup[risk == "high", oupt := c(875, 989, 1105, 1117, 725) ]
-agegroup[risk == "high", oupt_SD := c(1929, 2274, 2617, 1992, 1724) ]
-agegroup[risk == "low", hosp :=c(16580, 22880, 28972, 33989, 17450) ]
-agegroup[risk == "low", hosp_SD :=c(55148, 34867, 68022, 145878, 35235) ]
-agegroup[risk == "high", hosp :=c(124344, 312736, 72723, 62951, 25525) ]
-agegroup[risk == "high", hosp_SD :=c(188393, 76794, 130512, 113984, 48903) ]
-agegroup[risk == "low", death :=c(43916, 43916, 116328, 180695, 63924) ]
-agegroup[risk == "low", death_SD :=c(37241, 37241, 139671, 508796, 147005) ]
-agegroup[risk == "high", death :=c(408333, 408333, 115648, 181102, 50305) ]
-agegroup[risk == "high", death_SD :=c(336978, 336978, 99460, 527225, 94335) ]
+baseplot + aes(fill = AgeGroup) + scale_fill_brewer(palette = "Set1", name="Age Group") +
+  facet_grid(outcome ~ ., scales = "free_y") +
+  geom_bar(stat="identity") +
+  geom_boxplot(
+    data=ref[,list(total = sum(cases)), by=c("r", "vax_rate", "outcome","sample")],
+    mapping=aes(y = total / 10000, fill=NA, group = vax_rate), alpha = 0.1,
+    outlier.size = 0, show_guide = F
+  )
 
-agegroup[risk == "low", oupt_para := c(0.455, 0.318, 0.313, 0.313, 0.620) ]
-agegroup[risk == "high", oupt_para := c(0.910, 0.635, 0.625, 0.625, 0.820) ]
-agegroup[risk == "low", hosp_para :=c(0.0141, 0.0006, 0.0042, 0.0193, 0.0421) ]
-agegroup[risk == "high", hosp_para :=c(0.0141, 0.0006, 0.0042, 0.0193, 0.0421) ]
-agegroup[risk == "low", death_para :=c(0.00004, 0.00001, 0.00009, 0.00134, 0.01170) ]
-agegroup[risk == "high", death_para :=c(0.00004, 0.00001, 0.00009, 0.00134, 0.01170) ]
-agegroup[risk == "low", otc_para := 1 - oupt_para - hosp_para - death_para ]
-agegroup[risk == "high", otc_para := 1 - oupt_para - hosp_para - death_para ]
+baseplot + aes(fill = AgeGroup) + scale_fill_brewer(palette = "Set1", name="Age Group") +
+  facet_grid(outcome ~ ., scales = "free_y") +
+  geom_bar(stat="identity") +
+  stat_smooth(
+    data=ref[,list(total = sum(cases)), by=c("r", "vax_rate", "outcome","sample")],
+    mapping=aes(y=total/10000, x=vax_rate), fill="lightgrey", se=T, show_guide = F, color="black"
+  ) +
+  geom_jitter(
+    data=ref[,list(total = sum(cases)), by=c("r", "vax_rate", "outcome","sample")],
+    mapping=aes(y=total/10000, fill=NA, x=vax_rate), se=T, show_guide = F, color="black",
+    position = position_jitter(width = .01), alpha = 0.8
+  )
+
+baseplot + aes(fill = outcome) + scale_fill_brewer(palette = "Set1", name="Outcome") +
+  facet_grid(AgeGroup ~ ., scales = "free_y") +
+  geom_bar(stat="identity") +
+  geom_boxplot(
+    data=ref[,list(total = sum(cases)), by=c("r", "vax_rate", "outcome","sample")],
+    mapping=aes(y = total / 10000, fill=NA, group = vax_rate), alpha = 0.1,
+    outlier.size = 0, show_guide = F
+  )
+
+cost_params.dt <- agegroup[,list(AgeGroup,risk)]
+
+#OTC (all same price ) 
+cost_params.dt$OTC = 4.58
+#cost_params.dt$otc_SD = 3.05
+#oupt normal risk 
+cost_params.dt[risk == "normal", Outpatient := c(255, 145, 191, 229, 369) ]
+#cost_params.dt[risk == "normal", oupt_SD := c(468, 393, 688, 1167, 2353) ]
+cost_params.dt[risk == "high", Outpatient := c(875, 989, 1105, 1117, 725) ]
+#cost_params.dt[risk == "high", oupt_SD := c(1929, 2274, 2617, 1992, 1724) ]
+cost_params.dt[risk == "normal", Hospitalization :=c(16580, 22880, 28972, 33989, 17450) ]
+#cost_params.dt[risk == "normal", hosp_SD :=c(55148, 34867, 68022, 145878, 35235) ]
+cost_params.dt[risk == "high", Hospitalization :=c(124344, 312736, 72723, 62951, 25525) ]
+#cost_params.dt[risk == "high", hosp_SD :=c(188393, 76794, 130512, 113984, 48903) ]
+cost_params.dt[risk == "normal", Death :=c(43916, 43916, 116328, 180695, 63924) ]
+#cost_params.dt[risk == "normal", death_SD :=c(37241, 37241, 139671, 508796, 147005) ]
+cost_params.dt[risk == "high", Death :=c(408333, 408333, 115648, 181102, 50305) ]
+#cost_params.dt[risk == "high", death_SD :=c(336978, 336978, 99460, 527225, 94335) ]
+
+cost.melt <- melt(cost_params.dt, value.name = "cost_per_case", variable.name = "outcome", id.vars = c("AgeGroup","risk"))
+
+cost.merge <- merge(cases.melt, cost.melt, by=c("AgeGroup","outcome","risk"))
+vax.costs.dt <- rbind(cost.merge, cost.merge[AgeGroup == "5-18", list(
+  AgeGroup,
+  outcome = "Vaccination",
+  population,
+  cases = population*vax_rate,
+  cost_per_case = 44.25
+), by=c("risk","scenario","r","vax_rate","sample")])
+
+costref <- vax.costs.dt[scenario == "hom" & r == 1.4, list(cost = sum(cost_per_case*cases)), by = c("AgeGroup","vax_rate","sample","r","outcome")]
+# adsfasdfasdf
+costtot <- costref[,list(cost = sum(cost)), by=c("vax_rate", "sample","r","outcome")]
+costtot$individual <- 0
+costtot$private_insurance <- 0
+costtot$government <- 0
+costtot[outcome == "OTC", individual := cost]
+costtot[outcome != "OTC", private_insurance := cost*0.7 ]
+costtot[outcome != "OTC", government := cost*0.3 ]
+costtot$cost <- NULL
+costtot.melt <- melt(costtot, id.vars = c("vax_rate","sample","r","outcome"), value.name = "cost", variable.name = "payee")
+
+ggplot(costtot.melt) + 
+  aes(x=vax_rate, y = cost/1e6, fill=outcome) + 
+  facet_grid(payee ~ ., scale="free_y") + 
+  geom_bar(stat="identity") +
+  scale_fill_brewer(palette = "Set1")
+
+
+
+
 
 ## n.b., this does not allow for "no treatment"
 ## also, no analysis of lost productivity?
