@@ -25,11 +25,14 @@ scenarios <- data.table(LAIV=rate_laiv, IIV=rate_iiv, total = rate_laiv + rate_i
 
 seniorDiscount <- .70 ## from cite what?
 
+sen_VE_hom <- c(sp=.80, s = .40, p = .67)
+sen_VE_het <- c(sp=.40, s = .30, p = .14)
+
 alpha <- function(VE_sp = .80, VE_s = .40, VE_p = .67, s.d = seniorDiscount) {
   qa <- -VE_s*VE_p; qb <- VE_s+VE_p; qc <- -s.d*VE_sp
   (-qb+c(-1,1)*sqrt(qb^2 - 4*qa*qc))/(2*qa)
 }
 
-hom <- alpha()[2]
-het <- alpha(.40, .30, .14)[2]
+hom <- alpha()[2]*sen_VE_hom
+het <- alpha(.40, .30, .14)[2]*sen_VE_het
 
