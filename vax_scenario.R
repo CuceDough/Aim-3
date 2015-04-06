@@ -33,6 +33,6 @@ alpha <- function(VE_sp = .80, VE_s = .40, VE_p = .67, s.d = seniorDiscount) {
   (-qb+c(-1,1)*sqrt(qb^2 - 4*qa*qc))/(2*qa)
 }
 
-hom <- alpha()[2]*sen_VE_hom
-het <- alpha(.40, .30, .14)[2]*sen_VE_het
+hom <- alpha()[2]*sen_VE_hom[-1]
+het <- alpha(.40, .30, .14)[2]*sen_VE_het[-1]
 
