@@ -1,0 +1,10 @@
+Package: SLIVcost
+Title: Cost Analysis for School-Located Influenza Vaccination (SLIV) Programs
+Version: 0.0.0.9000
+Authors@R: person("Carl", "Pearson", ,"blank101@gmail.com", role = c("aut", "cre"))
+Description: This package provides a collection of tools I used to translate a collection of influenza forecasts, SLIV budgets, and hospital claims data into a cost analysis for these programs.
+Depends: R (>= 3.0.3)
+License: MIT
+LazyData: true
+Imports: data.table,
+    reshape2
